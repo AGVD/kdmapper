@@ -2,7 +2,7 @@
 
 KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map non-signed drivers in memory
 
-Tested from **Windows 10 1607** to **Windows 11 26100.1882** :heavy_check_mark:
+Tested from **Windows 10 1607** to **Windows 11 25H2 26200.6899** :heavy_check_mark:
 
 **Note:** Add definition **DISABLE_OUTPUT** to remove all console outputs
 
@@ -16,7 +16,7 @@ Tested from **Windows 10 1607** to **Windows 11 26100.1882** :heavy_check_mark:
 	--indPages to map in allocated independent pages
 	--PassAllocationPtr to pass allocation ptr as first param
 	[PDB offset based build only]:
-	--offsetsPath "FilePath" to include your own offsets file path (if FilePath contains spaces, it must be enclosed in quotation marks)
+	--offsetsPath "FilePath" to include your own offsets file path (by default .\offsets.ini)(if FilePath contains spaces, it must be enclosed in quotation marks)
 	--dontUpdateOffsets to execute without updating the offsets file (warning: you have to be sure that the offsets are not outdated to your current windows build, or you risk a potential BSOD)
 	
 
@@ -85,8 +85,9 @@ Updated and improved by https://github.com/TheCruZ
 
 Initial PDB offsets parser written by https://github.com/Mohi-eddine
 
-Independent Pages allocation written by https://github.com/Herooyyy/
-
-
+Some code cleaning https://github.com/tihomirocrew
 
 Have Fun!!
+
+
+

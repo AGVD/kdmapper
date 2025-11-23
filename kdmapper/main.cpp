@@ -15,18 +15,15 @@
 #include "KDSymbolsHandler.h"
 #endif
 
-HANDLE iqvw64e_device_handle;
-
-
 LONG WINAPI SimplestCrashHandler(EXCEPTION_POINTERS* ExceptionInfo)
 {
 	if (ExceptionInfo && ExceptionInfo->ExceptionRecord)
-		Log(L"[!!] Crash at addr 0x" << ExceptionInfo->ExceptionRecord->ExceptionAddress << L" by 0x" << std::hex << ExceptionInfo->ExceptionRecord->ExceptionCode << std::endl);
+		kdmLog(L"[!!] Crash at addr 0x" << ExceptionInfo->ExceptionRecord->ExceptionAddress << L" by 0x" << std::hex << ExceptionInfo->ExceptionRecord->ExceptionCode << std::endl);
 	else
-		Log(L"[!!] Crash" << std::endl);
+		kdmLog(L"[!!] Crash" << std::endl);
 
-	if (iqvw64e_device_handle)
-		intel_driver::Unload(iqvw64e_device_handle);
+	if (intel_driver::hDevice)
+		intel_driver::Unload();
 
 	return EXCEPTION_EXECUTE_HANDLER;
 }
@@ -49,7 +46,7 @@ bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, UL
 	UNREFERENCED_PARAMETER(param2);
 	UNREFERENCED_PARAMETER(allocationPtr);
 	UNREFERENCED_PARAMETER(allocationSize);
-	Log("[+] Callback example called" << std::endl);
+	kdmLog("[+] Callback example called" << std::endl);
 	
 	/*
 	This callback occurs before call driver entry and
@@ -68,7 +65,7 @@ DWORD getParentProcess()
 
 	hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	__try {
-		if (hSnapshot == INVALID_HANDLE_VALUE) __leave;
+		if (hSnapshot == INVALID_HANDLE_VALUE || hSnapshot == 0) __leave;
 
 		ZeroMemory(&pe32, sizeof(pe32));
 		pe32.dwSize = sizeof(pe32);
@@ -83,7 +80,7 @@ DWORD getParentProcess()
 
 	}
 	__finally {
-		if (hSnapshot != INVALID_HANDLE_VALUE) CloseHandle(hSnapshot);
+		if (hSnapshot != INVALID_HANDLE_VALUE && hSnapshot != 0) CloseHandle(hSnapshot);
 	}
 	return ppid;
 }
@@ -94,21 +91,21 @@ void PauseIfParentIsExplorer() {
 	GetWindowThreadProcessId(GetShellWindow(), &explorerPid);
 	DWORD parentPid = getParentProcess();
 	if (parentPid == explorerPid) {
-		Log(L"[+] Pausing to allow for debugging" << std::endl);
-		Log(L"[+] Press enter to close" << std::endl);
+		kdmLog(L"[+] Pausing to allow for debugging" << std::endl);
+		kdmLog(L"[+] Press enter to close" << std::endl);
 		std::cin.get();
 	}
 }
 
 void help() {
-	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
-	Log(L"[+] Usage: kdmapper.exe [--free | --indPages][--PassAllocationPtr][--copy-header]");
+	kdmLog(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
+	kdmLog(L"[+] Usage: kdmapper.exe [--free | --indPages][--PassAllocationPtr][--copy-header]");
 
 #ifdef PDB_OFFSETS
-	Log(L"[--dontUpdateOffsets [--offsetsPath \"FilePath\"]]"); 
+	kdmLog(L"[--dontUpdateOffsets [--offsetsPath \"FilePath\"]]"); 
 #endif
 	
-	Log(L" driver" << std::endl);
+	kdmLog(L" driver" << std::endl);
 
 	PauseIfParentIsExplorer();
 }
@@ -122,41 +119,41 @@ int wmain(const int argc, wchar_t** argv) {
 	bool copyHeader = paramExists(argc, argv, L"copy-header") > 0;
 
 	if (free) {
-		Log(L"[+] Free pool memory after usage enabled" << std::endl);
+		kdmLog(L"[+] Free pool memory after usage enabled" << std::endl);
 	}
 
 	if (indPagesMode) {
-		Log(L"[+] Allocate Independent Pages mode enabled" << std::endl);
+		kdmLog(L"[+] Allocate Independent Pages mode enabled" << std::endl);
 	}
 
 	if (free && indPagesMode) {
-		Log(L"[-] Can't use --free and --indPages at the same time" << std::endl);
+		kdmLog(L"[-] Can't use --free and --indPages at the same time" << std::endl);
 		help();
 		return -1;
 	}
 
 	if (passAllocationPtr) {
-		Log(L"[+] Pass Allocation Ptr as first param enabled" << std::endl);
+		kdmLog(L"[+] Pass Allocation Ptr as first param enabled" << std::endl);
 	}
 
 	if (copyHeader) {
-		Log(L"[+] Copying driver header enabled" << std::endl);
+		kdmLog(L"[+] Copying driver header enabled" << std::endl);
 	}
 
 #ifdef PDB_OFFSETS
 	bool UpdateOffset = !(paramExists(argc, argv, L"dontUpdateOffsets") > 0);
 	int FilePathParamIdx = paramExists(argc, argv, L"offsetsPath");
-	std::wstring offsetFilePath = utils::GetCurrentAppFolder() + L"\\offsets.ini";
+	std::wstring offsetFilePath = kdmUtils::GetCurrentAppFolder() + L"\\offsets.ini";
 
 	if (UpdateOffset && FilePathParamIdx > 0) {
-		Log("[-] Can't set --offsetsPath without set --dontUpdateOffsets" << std::endl);
+		kdmLog("[-] Can't set --offsetsPath without set --dontUpdateOffsets" << std::endl);
 		help();
 		return -1;
 	}
 
 	if (FilePathParamIdx > 0) {
 		offsetFilePath = argv[FilePathParamIdx + 1];
-		Log("[+] Setting Offsets File Path To: " << offsetFilePath << std::endl);
+		kdmLog("[+] Setting Offsets File Path To: " << offsetFilePath << std::endl);
 	}
 #endif
 
@@ -176,30 +173,28 @@ int wmain(const int argc, wchar_t** argv) {
 	const std::wstring driver_path = argv[drvIndex];
 
 	if (!std::filesystem::exists(driver_path)) {
-		Log(L"[-] File " << driver_path << L" doesn't exist" << std::endl);
+		kdmLog(L"[-] File " << driver_path << L" doesn't exist" << std::endl);
 		PauseIfParentIsExplorer();
 		return -1;
 	}
 
 #ifdef PDB_OFFSETS
-	if (!KDSymbolsHandler::GetInstance()->ReloadFile(offsetFilePath, UpdateOffset ? utils::GetCurrentAppFolder() + L"\\" + SYM_FROM_PDB_EXE : L"")) {
-		Log(L"[-] Error: Failed To Get Symbols Info." << std::endl);
+	if (!KDSymbolsHandler::GetInstance()->ReloadFile(offsetFilePath, UpdateOffset ? kdmUtils::GetCurrentAppFolder() + L"\\" + SYM_FROM_PDB_EXE : L"")) {
+		kdmLog(L"[-] Error: Failed To Get Symbols Info." << std::endl);
 		PauseIfParentIsExplorer();
 		return -1;
 	}
 #endif
 
-	iqvw64e_device_handle = intel_driver::Load();
-
-	if (iqvw64e_device_handle == INVALID_HANDLE_VALUE) {
+	if (!NT_SUCCESS(intel_driver::Load())) {
 		PauseIfParentIsExplorer();
 		return -1;
 	}
 
 	std::vector<uint8_t> raw_image = { 0 };
-	if (!utils::ReadFileToMemory(driver_path, &raw_image)) {
-		Log(L"[-] Failed to read image to memory" << std::endl);
-		intel_driver::Unload(iqvw64e_device_handle);
+	if (!kdmUtils::ReadFileToMemory(driver_path, &raw_image)) {
+		kdmLog(L"[-] Failed to read image to memory" << std::endl);
+		intel_driver::Unload();
 		PauseIfParentIsExplorer();
 		return -1;
 	}
@@ -211,18 +206,18 @@ int wmain(const int argc, wchar_t** argv) {
 	}
 
 	NTSTATUS exitCode = 0;
-	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, !copyHeader, mode, passAllocationPtr, callbackExample, &exitCode)) {
-		Log(L"[-] Failed to map " << driver_path << std::endl);
-		intel_driver::Unload(iqvw64e_device_handle);
+	if (!kdmapper::MapDriver(raw_image.data(), 0, 0, free, !copyHeader, mode, passAllocationPtr, callbackExample, &exitCode)) {
+		kdmLog(L"[-] Failed to map " << driver_path << std::endl);
+		intel_driver::Unload();
 		PauseIfParentIsExplorer();
 		return -1;
 	}
 
-	if (!intel_driver::Unload(iqvw64e_device_handle)) {
-		Log(L"[-] Warning failed to fully unload vulnerable driver " << std::endl);
+	if (!NT_SUCCESS(intel_driver::Unload())) {
+		kdmLog(L"[-] Warning failed to fully unload vulnerable driver " << std::endl);
 		PauseIfParentIsExplorer();
 	}
-	Log(L"[+] success" << std::endl);
+	kdmLog(L"[+] success" << std::endl);
 
 }
 

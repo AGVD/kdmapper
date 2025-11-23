@@ -18,13 +18,13 @@ bool KDSymbolsHandler::ReloadFile(std::wstring path, std::wstring updater) {
 	}
 
 	if (!updater.empty()) {
-		path = utils::GetCurrentAppFolder() + L"\\offsets.ini"; //default name if update is requested
+		path = kdmUtils::GetCurrentAppFolder() + L"\\offsets.ini"; //default name if update is requested
 
 		//delete old file
 		std::filesystem::remove(path);
 
-		std::string cmd = "\"" + std::string(updater.begin(), updater.end()) + "\"";
-		auto exitCode = system(cmd.c_str());
+		std::wstring cmdW = L"\"" + updater + L"\"";
+		auto exitCode = _wsystem(cmdW.c_str());
 		if (exitCode != 0) {
 			std::wcout << L"[-] Failed to update offsets" << std::endl;
 			return false;
